@@ -112,6 +112,7 @@ func (hs *serverHandshakeState) readClientHello() (isResume bool, err error) {
 		return false, unexpectedMessageError(hs.clientHello, msg)
 	}
 	c.clientCiphers = hs.clientHello.cipherSuites
+	c.clientHelloRaw = hs.clientHello.raw
 	c.vers, ok = config.mutualVersion(hs.clientHello.vers)
 	if !ok {
 		c.sendAlert(alertProtocolVersion)

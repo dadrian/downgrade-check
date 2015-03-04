@@ -37,6 +37,7 @@ type DowngradeLog struct {
 	Vulnerable bool               `json:"vulnerable"`
 	Request    string             `json:"request,omitempty"`
 	Ciphers    []ztls.CipherSuite `json:"ciphers,omitempty"`
+	RawHello   []byte             `json:"raw_hello"`
 }
 
 var logChan chan DowngradeLog
@@ -47,12 +48,14 @@ func downgrade(c *ztls.Conn) error {
 	entry := DowngradeLog{
 		Host: host,
 	}
-	if err := c.Handshake(); err != nil {
+	handshakeErr := c.Handshake()
+	entry.Ciphers = c.ClientCiphers()
+	entry.RawHello = c.ClientHelloRaw()
+	if handshakeErr != nil {
 		logChan <- entry
-		return err
+		return handshakeErr
 	}
 	entry.Vulnerable = true
-	entry.Ciphers = c.ClientCiphers()
 	buf := make([]byte, 1024)
 	n, _ := c.Read(buf)
 	entry.Request = string(buf[0:n])

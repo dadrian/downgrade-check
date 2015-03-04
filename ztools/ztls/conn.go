@@ -63,11 +63,22 @@ type Conn struct {
 	// Missing cipher
 	cipherError error
 
-	clientCiphers []uint16
+	clientCiphers  []uint16
+	clientHelloRaw []byte
+}
+
+func (c *Conn) ClientHelloRaw() []byte {
+	if c.clientHelloRaw == nil {
+		return []byte{}
+	}
+	return c.clientHelloRaw
 }
 
 func (c *Conn) ClientCiphers() []CipherSuite {
 	// FUCK YOU GO
+	if c.clientCiphers == nil {
+		return []CipherSuite{}
+	}
 	out := make([]CipherSuite, len(c.clientCiphers))
 	for idx, val := range c.clientCiphers {
 		out[idx] = CipherSuite(val)
