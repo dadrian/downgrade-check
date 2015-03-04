@@ -100,8 +100,10 @@ func main() {
 	logChan = make(chan DowngradeLog, 1024)
 	go func() {
 		encoder := json.NewEncoder(logFile)
-		entry := <-logChan
-		encoder.Encode(entry)
+		for {
+			entry := <-logChan
+			encoder.Encode(entry)
+		}
 	}()
 
 	listener, err := ztls.Listen("tcp", flags.ListenAddress, &tlsConfig)
