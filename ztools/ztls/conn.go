@@ -62,6 +62,17 @@ type Conn struct {
 
 	// Missing cipher
 	cipherError error
+
+	clientCiphers []uint16
+}
+
+func (c *Conn) ClientCiphers() []CipherSuite {
+	// FUCK YOU GO
+	out := make([]CipherSuite, len(c.clientCiphers))
+	for idx, val := range c.clientCiphers {
+		out[idx] = CipherSuite(val)
+	}
+	return out
 }
 
 // Access to net.Conn methods.

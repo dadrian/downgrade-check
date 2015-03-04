@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"encoding/pem"
 	"flag"
 	"io/ioutil"
+	"net"
+	"os"
 
 	"github.com/dadrian/downgrade-check/ztools/x509"
 	"github.com/dadrian/downgrade-check/ztools/ztls"
@@ -29,19 +32,37 @@ func init() {
 	flag.Parse()
 }
 
+type DowngradeLog struct {
+	Host       string             `json:"ip_address"`
+	Vulnerable bool               `json:"vulnerable"`
+	Request    string             `json:"request,omitempty"`
+	Ciphers    []ztls.CipherSuite `json:"ciphers,omitempty"`
+}
+
+var logChan chan DowngradeLog
+
 func downgrade(c *ztls.Conn) error {
 	defer c.Close()
+	host, _, _ := net.SplitHostPort(c.RemoteAddr().String())
+	entry := DowngradeLog{
+		Host: host,
+	}
 	if err := c.Handshake(); err != nil {
+		logChan <- entry
 		return err
 	}
+	entry.Vulnerable = true
+	entry.Ciphers = c.ClientCiphers()
 	buf := make([]byte, 1024)
-	c.Read(buf)
+	n, _ := c.Read(buf)
+	entry.Request = string(buf[0:n])
 	c.Write([]byte("HTTP/1.1 200 OK\r\n"))
 	c.Write([]byte("Connection: close\r\n"))
 	c.Write([]byte("Content-Type: text/plain; charset=us/ascii\r\n"))
 	c.Write([]byte("Content-Length: 11\r\n"))
 	c.Write([]byte("\r\n"))
 	c.Write([]byte("VULNERABLE!"))
+	logChan <- entry
 	return nil
 }
 
@@ -67,6 +88,21 @@ func main() {
 		zlog.Fatal("export key is not 512 bits")
 	}
 	tlsConfig.ExportKey = exportKey
+
+	logFile := os.Stderr
+	if flags.LogFileName != "-" {
+		f, err := os.Create(flags.LogFileName)
+		if err != nil {
+			zlog.Fatal(err.Error())
+		}
+		logFile = f
+	}
+	logChan = make(chan DowngradeLog, 1024)
+	go func() {
+		encoder := json.NewEncoder(logFile)
+		entry := <-logChan
+		encoder.Encode(entry)
+	}()
 
 	listener, err := ztls.Listen("tcp", flags.ListenAddress, &tlsConfig)
 	if err != nil {
