@@ -79,6 +79,9 @@ func main() {
 		zlog.Fatal(certErr.Error())
 	}
 	tlsConfig.Certificates = []ztls.Certificate{cert}
+	tlsConfig.SessionTicketsDisabled = true
+	tlsConfig.PreferServerCipherSuites = true
+	tlsConfig.MaxVersion = ztls.VersionTLS11
 
 	encodedKey, readKeyErr := ioutil.ReadFile(flags.ExportKeyPath)
 	if readKeyErr != nil {

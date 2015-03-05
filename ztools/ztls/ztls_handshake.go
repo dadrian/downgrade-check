@@ -2,6 +2,7 @@ package ztls
 
 import (
 	"crypto/rsa"
+	"encoding/binary"
 	"encoding/json"
 	"math/big"
 
@@ -45,7 +46,8 @@ type ServerHandshake struct {
 	ServerHello        *ServerHello       `json:"server_hello"`
 	ServerCertificates *Certificates      `json:"server_certificates"`
 	ServerKeyExchange  *ServerKeyExchange `json:"server_key_exchange"`
-	ExportParams       *RSAExportParams   `json:"rsa_export_params,omitempty"`
+	RSAExportParams    *RSAExportParams   `json:"rsa_export_params,omitempty"`
+	DHExportParams     *DHExportParams    `json:"dh_export_params,omitempty"`
 	ServerFinished     *Finished          `json:"server_finished"`
 }
 
@@ -136,17 +138,19 @@ func (esa *ExportSignatureAlgorithm) MarshalJSON() ([]byte, error) {
 }
 
 type RSAExportParams struct {
-	PublicKey          rsa.PublicKey            `json:"-"`
-	Modulus            []byte                   `json:"modulus"`
-	Exponent           uint32                   `json:"exponent"`
-	Signature          []byte                   `json:"signature"`
-	SignatureAlgorithm ExportSignatureAlgorithm `json:"signature_algorithm"`
+	PublicKey rsa.PublicKey `json:"-"`
+	Modulus   []byte        `json:"modulus"`
+	Exponent  uint32        `json:"exponent"`
+}
+
+type DHExportParams struct {
+	P  []byte `json:"p"`
+	G  []byte `json:"g"`
+	Ys []byte `json:"ys"`
 }
 
 func (p *rsaExportParams) MakeLog() *RSAExportParams {
 	out := new(RSAExportParams)
-	out.Signature = p.rawSignature
-	out.SignatureAlgorithm = ExportSignatureAlgorithm(p.signatureHashAlgorithm)
 	exponent := uint32(0)
 	for _, b := range p.rawExponent {
 		exponent <<= 8
@@ -162,4 +166,43 @@ func (p *rsaExportParams) MakeLog() *RSAExportParams {
 	out.Modulus = modulus.Bytes()
 	out.Exponent = exponent
 	return out
+}
+
+func (p *DHExportParams) unmarshal(buf []byte) bool {
+	if len(buf) < 2 {
+		return false
+	}
+	pLength := binary.BigEndian.Uint16(buf)
+	buf = buf[2:]
+
+	if len(buf) < int(pLength) {
+		return false
+	}
+	p.P = buf[0:pLength]
+	buf = buf[pLength:]
+
+	if len(buf) < 2 {
+		return false
+	}
+	gLength := binary.BigEndian.Uint16(buf)
+	buf = buf[2:]
+
+	if len(buf) < int(gLength) {
+		return false
+	}
+	p.G = buf[0:gLength]
+	buf = buf[gLength:]
+
+	if len(buf) < 2 {
+		return false
+	}
+	ysLength := binary.BigEndian.Uint16(buf)
+	buf = buf[2:]
+
+	if len(buf) < int(ysLength) {
+		return false
+	}
+	p.Ys = buf[0:ysLength]
+
+	return true
 }

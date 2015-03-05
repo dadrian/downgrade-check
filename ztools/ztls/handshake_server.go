@@ -39,7 +39,7 @@ func (c *Conn) serverHandshake() error {
 
 	config.CipherSuites = RSACiphers
 	config.MinVersion = VersionSSL30
-	config.MaxVersion = VersionTLS12
+	config.MaxVersion = VersionTLS11
 
 	// If this is the first server handshake, we generate a random key to
 	// encrypt the tickets with.
