@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"time"
 
 	"github.com/dadrian/downgrade-check/ztools/x509"
 	"github.com/dadrian/downgrade-check/ztools/ztls"
@@ -34,6 +35,7 @@ func init() {
 
 type DowngradeLog struct {
 	Host       string             `json:"ip_address"`
+	Time       string             `json:"time"`
 	Vulnerable bool               `json:"vulnerable"`
 	Request    string             `json:"request,omitempty"`
 	Ciphers    []ztls.CipherSuite `json:"ciphers,omitempty"`
@@ -47,6 +49,7 @@ func downgrade(c *ztls.Conn) error {
 	host, _, _ := net.SplitHostPort(c.RemoteAddr().String())
 	entry := DowngradeLog{
 		Host: host,
+		Time: time.Now().Format(time.RFC3339),
 	}
 	handshakeErr := c.Handshake()
 	entry.Ciphers = c.ClientCiphers()
