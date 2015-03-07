@@ -20,6 +20,7 @@ type Flags struct {
 	LogFileName          string
 	ListenAddress        string
 	ExportKeyPath        string
+	IECompatible         bool
 }
 
 var flags Flags
@@ -30,6 +31,7 @@ func init() {
 	flag.StringVar(&flags.ListenAddress, "listen-address", "127.0.0.1:443", "ip:port to listen on")
 	flag.StringVar(&flags.LogFileName, "log-file", "-", "defaults to stderr")
 	flag.StringVar(&flags.ExportKeyPath, "export-key", "export-key.pem", "Path to 512-bit key")
+	flag.BoolVar(&flags.IECompatible, "ie-compatible", false, "set to be compatible with IE11 (a.k.a. don't use TLS1.2)")
 	flag.Parse()
 }
 
@@ -46,10 +48,13 @@ var logChan chan DowngradeLog
 
 func downgrade(c *ztls.Conn) error {
 	defer c.Close()
+	t := time.Now()
+	deadline := t.Add(time.Second * 30)
+	c.SetDeadline(deadline)
 	host, _, _ := net.SplitHostPort(c.RemoteAddr().String())
 	entry := DowngradeLog{
 		Host: host,
-		Time: time.Now().Format(time.RFC3339),
+		Time: t.Format(time.RFC3339),
 	}
 	handshakeErr := c.Handshake()
 	entry.Ciphers = c.ClientCiphers()
@@ -81,7 +86,10 @@ func main() {
 	tlsConfig.Certificates = []ztls.Certificate{cert}
 	tlsConfig.SessionTicketsDisabled = true
 	tlsConfig.PreferServerCipherSuites = true
-	tlsConfig.MaxVersion = ztls.VersionTLS11
+	tlsConfig.MaxVersion = ztls.VersionTLS12
+	if flags.IECompatible {
+		tlsConfig.MaxVersion = ztls.VersionTLS11
+	}
 
 	encodedKey, readKeyErr := ioutil.ReadFile(flags.ExportKeyPath)
 	if readKeyErr != nil {
@@ -122,7 +130,7 @@ func main() {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			zlog.Info(err.Error())
+			zlog.Error(err.Error())
 			continue
 		}
 		c := conn.(*ztls.Conn)
