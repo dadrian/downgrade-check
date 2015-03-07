@@ -18,6 +18,7 @@ type Flags struct {
 	CertificateChainPath string
 	KeyPath              string
 	LogFileName          string
+	ErrorFileName        string
 	ListenAddress        string
 	ExportKeyPath        string
 	IECompatible         bool
@@ -32,6 +33,7 @@ func init() {
 	flag.StringVar(&flags.LogFileName, "log-file", "-", "defaults to stderr")
 	flag.StringVar(&flags.ExportKeyPath, "export-key", "export-key.pem", "Path to 512-bit key")
 	flag.BoolVar(&flags.IECompatible, "ie-compatible", false, "set to be compatible with IE11 (a.k.a. don't use TLS1.2)")
+	flag.StringVar(&flags.ErrorFileName, "error-file", "errors.log", "Logs connection-level errors")
 	flag.Parse()
 }
 
@@ -106,9 +108,16 @@ func main() {
 	}
 	tlsConfig.ExportKey = exportKey
 
+	// Error File
+	errorFile, oErr := os.OpenFile(flags.ErrorFileName, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if oErr != nil {
+		zlog.Fatal(oErr.Error())
+	}
+	errorLog := zlog.New(errorFile, "downgrade-check")
+
 	logFile := os.Stderr
 	if flags.LogFileName != "-" {
-		f, err := os.Create(flags.LogFileName)
+		f, err := os.OpenFile(flags.LogFileName, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
 			zlog.Fatal(err.Error())
 		}
@@ -130,7 +139,7 @@ func main() {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			zlog.Error(err.Error())
+			errorLog.Error(err.Error())
 			continue
 		}
 		c := conn.(*ztls.Conn)
